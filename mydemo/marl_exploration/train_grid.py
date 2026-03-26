@@ -23,8 +23,15 @@ import argparse
 import numpy as np
 from copy import deepcopy
 
+# Get script directory
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
+
+# Remove installed xuance from site-packages to use local version
+sys.path = [p for p in sys.path if 'site-packages/xuance' not in p]
+
 # Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, _PROJECT_ROOT)
 
 # Register the custom environment
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -251,47 +258,56 @@ def main():
         print("\n[Diagnostic Mode] Quick training verification")
         print("-" * 40)
 
-        # Run a short training session
-        diag_steps = 10000 // configs.parallels
-        print(f"Running {diag_steps} training steps to verify...")
+        # Test environment directly first (bypassing xuance's vectorized env)
+        print("\n[Test 1] Testing GridExplorationEnv directly...")
+        from environments.grid_exploration import GridExplorationEnv
 
-        # Test environment directly first
-        print("\n[Test 1] Testing environment directly...")
-        from xuance.environment import make_envs
-        test_configs = deepcopy(configs)
-        test_configs.parallels = 1
-        test_env = make_envs(test_configs)
+        env = GridExplorationEnv(
+            num_agents=configs.num_agents,
+            grid_size=configs.grid_size,
+            max_steps=configs.max_episode_steps
+        )
 
-        # Reset and run a few steps
-        obs = test_env.reset()
-        print(f"  Reset obs shape: {len(obs)} agents")
+        obs, infos = env.reset()
+        print(f"  Reset: {len(obs)} agents, coverage={env.get_coverage_percent():.1f}%")
 
         total_reward = 0
         for i in range(10):
-            # Random actions
-            actions = {agent: np.random.randint(0, 5) for agent in obs.keys()}
-            obs, rewards, terms, truncs, infos = test_env.step(actions)
-            total_reward += sum(rewards.values()) if isinstance(rewards, dict) else sum(rewards)
+            actions = {agent: env.np_random.randint(0, 5) for agent in env.agents}
+            obs, rewards, terms, truncs, infos = env.step(actions)
+            step_reward = sum(rewards.values())
+            total_reward += step_reward
             if i < 3:
-                print(f"  Step {i}: reward={sum(rewards.values()) if isinstance(rewards, dict) else rewards:.2f}, terms={terms}")
+                print(f"  Step {i}: reward={step_reward:.2f}, coverage={env.get_coverage_percent():.1f}%, episode_score={infos.get('agent_0', {}).get('episode_score', 'N/A'):.2f}")
 
         print(f"  Total reward (10 steps): {total_reward:.2f}")
+        print(f"  Final coverage: {env.get_coverage_percent():.1f}%")
+        env.close()
 
-        # Now test with agent
-        print("\n[Test 2] Testing with IQL agent...")
+        if total_reward > 0:
+            print("\n[PASS] Environment is working - non-zero rewards detected!")
+        else:
+            print("\n[WARNING] Environment may not be working - all zero rewards")
+
+        # Now test with xuance agent (short training)
+        print("\n[Test 2] Testing with IQL agent (short training)...")
+        diag_steps = 5000 // configs.parallels
+        print(f"  Running {diag_steps} training steps...")
         agent.train(diag_steps)
-
-        print(f"\n  Training finished. Current step: {agent.current_step}")
+        print(f"  Training finished. Current step: {agent.current_step}")
 
         # Quick test of learned policy
         print("\n[Test 3] Testing trained policy...")
-        test_scores = agent.test(test_episodes=3, test_envs=test_env, close_envs=True)
+        test_configs = deepcopy(configs)
+        test_configs.parallels = 1
+        test_env = make_envs(test_configs)
+        test_scores = agent.test(test_episodes=5, test_envs=test_env, close_envs=True)
         mean_score = np.mean(test_scores) if len(test_scores) > 0 else 0
         print(f"  Test scores: {test_scores}")
         print(f"  Mean score: {mean_score:.2f}")
 
         if mean_score != 0:
-            print("\n[PASS] Training appears to be working - non-zero rewards detected!")
+            print("\n[PASS] Training appears to be working - non-zero rewards!")
         else:
             print("\n[WARNING] Training may not be working - all zero rewards")
 
