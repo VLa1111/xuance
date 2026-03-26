@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent RL Explorer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            width: 100%;
+        }
+
+        .visualization-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stats-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-card h3 {
+            font-size: 0.8rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #00d9ff;
+        }
+
+        .stat-value.success {
+            color: #00ff88;
+        }
+
+        .stat-value.warning {
+            color: #ffaa00;
+        }
+
+        #canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 8px;
+            background: #0a0a15;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .legend-dot.agent {
+            background: #00d9ff;
+            box-shadow: 0 0 8px #00d9ff;
+        }
+
+        .legend-dot.landmark {
+            background: #ff6b6b;
+        }
+
+        .legend-dot.explored {
+            background: #00ff88;
+            opacity: 0.6;
+        }
+
+        .legend-dot.unexplored {
+            background: #2a2a3a;
+            border: 1px solid #444;
+        }
+
+        .coverage-bar {
+            height: 8px;
+            background: #2a2a3a;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .coverage-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            transition: width 0.3s ease;
+            border-radius: 4px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d9ff, #0099cc);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 217, 255, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #00ff88;
+        }
+
+        .status-dot.disconnected {
+            background: #ff4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .info-item {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .info-item label {
+            display: block;
+            font-size: 0.7rem;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .info-item span {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .episode-history {
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        .episode-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            margin-bottom: 4px;
+            font-size: 0.85rem;
+        }
+
+        .episode-item span:first-child {
+            color: #888;
+        }
+
+        .episode-item span:last-child {
+            font-weight: 600;
+        }
+
+        @media (max-width: 900px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Multi-Agent RL Explorer</h1>
+            <p>Real-time visualization of robot swarm exploration</p>
+        </header>
+
+        <div class="main-content">
+            <div class="visualization-panel">
+                <canvas id="canvas" width="600" height="600"></canvas>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-dot agent"></div>
+                        <span>Agent</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot landmark"></div>
+                        <span>Landmark</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot explored"></div>
+                        <span>Explored</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot unexplored"></div>
+                        <span>Unexplored</span>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-primary" id="togglePause">Pause</button>
+                    <button class="btn btn-secondary" id="resetView">Reset View</button>
+                </div>
+            </div>
+
+            <div class="stats-panel">
+                <div class="stat-card">
+                    <h3>Exploration Coverage</h3>
+                    <div class="stat-value" id="coveragePercent">0%</div>
+                    <div class="coverage-bar">
+                        <div class="coverage-fill" id="coverageBar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <h3>Episode Reward</h3>
+                    <div class="stat-value success" id="episodeReward">0</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Episode</label>
+                            <span id="episodeNum">0</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Step</label>
+                            <span id="stepNum">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <h3>Connection</h3>
+                    <div class="connection-status">
+                        <div class="status-dot" id="statusDot"></div>
+                        <span id="statusText">Connecting...</span>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <h3>Recent Episodes</h3>
+                    <div class="episode-history" id="episodeHistory">
+                        <!-- Episode history will be added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script>
+        // Configuration
+        const CANVAS_SIZE = 600;
+        const WORLD_SIZE = 2.0;  // MPE world is typically -1 to 1
+        const AGENT_RADIUS = 8;
+        const LANDMARK_RADIUS = 6;
+
+        // State
+        let agents = [];
+        let landmarks = [];
+        let coverageGrid = [];
+        let gridSize = 20;
+        let coveragePercent = 0;
+        let episodeReward = 0;
+        let episode = 0;
+        let step = 0;
+        let isPaused = false;
+        let lastUpdateTime = Date.now();
+        let fps = 0;
+        let frameCount = 0;
+        let episodeHistory = [];
+
+        // Canvas setup
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Elements
+        const coveragePercentEl = document.getElementById('coveragePercent');
+        const coverageBarEl = document.getElementById('coverageBar');
+        const episodeRewardEl = document.getElementById('episodeReward');
+        const episodeNumEl = document.getElementById('episodeNum');
+        const stepNumEl = document.getElementById('stepNum');
+        const statusDotEl = document.getElementById('statusDot');
+        const statusTextEl = document.getElementById('statusText');
+        const episodeHistoryEl = document.getElementById('episodeHistory');
+        const togglePauseBtn = document.getElementById('togglePause');
+
+        // Coordinate transformation (world to canvas)
+        function worldToCanvas(x, y) {
+            const cx = (x + WORLD_SIZE) / (2 * WORLD_SIZE) * CANVAS_SIZE;
+            const cy = CANVAS_SIZE - ((y + WORLD_SIZE) / (2 * WORLD_SIZE) * CANVAS_SIZE);  // Flip Y
+            return [cx, cy];
+        }
+
+        // Drawing functions
+        function drawGrid() {
+            const cellSize = CANVAS_SIZE / gridSize;
+
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const idx = y * gridSize + x;
+                    if (coverageGrid[idx] === 1) {
+                        ctx.fillStyle = 'rgba(0, 255, 136, 0.3)';
+                    } else {
+                        ctx.fillStyle = '#1a1a2e';
+                    }
+                    ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+
+                    // Grid lines
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+                    ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                }
+            }
+        }
+
+        function drawLandmarks() {
+            landmarks.forEach(lm => {
+                const [cx, cy] = worldToCanvas(lm.x, lm.y);
+                ctx.beginPath();
+                ctx.arc(cx, cy, LANDMARK_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fill();
+                ctx.strokeStyle = '#ff8888';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+        }
+
+        function drawAgents() {
+            agents.forEach((agent, idx) => {
+                const [cx, cy] = worldToCanvas(agent.x, agent.y);
+
+                // Glow effect
+                const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, AGENT_RADIUS * 2);
+                gradient.addColorStop(0, 'rgba(0, 217, 255, 0.4)');
+                gradient.addColorStop(1, 'rgba(0, 217, 255, 0)');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(cx, cy, AGENT_RADIUS * 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Agent body
+                ctx.beginPath();
+                ctx.arc(cx, cy, AGENT_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = '#00d9ff';
+                ctx.fill();
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Agent ID
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(idx.toString(), cx, cy);
+            });
+        }
+
+        function drawStats() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(10, 10, 150, 80);
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`FPS: ${fps}`, 20, 30);
+            ctx.fillText(`Agents: ${agents.length}`, 20, 50);
+            ctx.fillText(`Coverage: ${coveragePercent.toFixed(1)}%`, 20, 70);
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+            drawGrid();
+            drawLandmarks();
+            drawAgents();
+            drawStats();
+
+            // FPS calculation
+            frameCount++;
+            const now = Date.now();
+            if (now - lastUpdateTime >= 1000) {
+                fps = frameCount;
+                frameCount = 0;
+                lastUpdateTime = now;
+            }
+
+            requestAnimationFrame(render);
+        }
+
+        // Update UI
+        function updateUI() {
+            coveragePercentEl.textContent = coveragePercent.toFixed(1) + '%';
+            coverageBarEl.style.width = coveragePercent.toFixed(1) + '%';
+            episodeRewardEl.textContent = episodeReward.toFixed(1);
+            episodeNumEl.textContent = episode;
+            stepNumEl.textContent = step;
+
+            // Update pause button text
+            togglePauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+        }
+
+        function addEpisodeToHistory(ep, coverage, reward) {
+            episodeHistory.unshift({ ep, coverage, reward });
+            if (episodeHistory.length > 10) {
+                episodeHistory.pop();
+            }
+
+            // Update history display
+            episodeHistoryEl.innerHTML = episodeHistory.map(e => `
+                <div class="episode-item">
+                    <span>Ep ${e.ep}</span>
+                    <span style="color: ${e.coverage > 80 ? '#00ff88' : '#ffaa00'}">${e.coverage.toFixed(1)}%</span>
+                    <span>R: ${e.reward.toFixed(0)}</span>
+                </div>
+            `).join('');
+        }
+
+        // Socket.IO connection
+        const socket = io();
+
+        socket.on('connect', () => {
+            statusDotEl.className = 'status-dot connected';
+            statusTextEl.textContent = 'Connected';
+        });
+
+        socket.on('disconnect', () => {
+            statusDotEl.className = 'status-dot disconnected';
+            statusTextEl.textContent = 'Disconnected';
+        });
+
+        socket.on('state_update', (data) => {
+            if (!isPaused) {
+                agents = data.agents || [];
+                landmarks = data.landmarks || [];
+                coverageGrid = data.coverage_grid || [];
+                coveragePercent = data.coverage_percent || 0;
+                episodeReward = data.episode_reward || 0;
+                step = data.step || 0;
+                updateUI();
+            }
+        });
+
+        socket.on('episode_end', (data) => {
+            episode = data.episode;
+            addEpisodeToHistory(data.episode, data.final_coverage, data.total_reward);
+        });
+
+        // Button handlers
+        togglePauseBtn.addEventListener('click', () => {
+            isPaused = !isPaused;
+            togglePauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+        });
+
+        document.getElementById('resetView').addEventListener('click', () => {
+            // Reset view state (for future use)
+        });
+
+        // Start rendering
+        render();
+    </script>
+</body>
+</html>

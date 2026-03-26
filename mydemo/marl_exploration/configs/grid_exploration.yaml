@@ -1,0 +1,77 @@
+# Grid Exploration Environment Configuration
+# Task: Multiple agents explore and cover a 2D grid map
+
+dl_toolbox: "torch"
+project_name: "Grid_Exploration"
+logger: "tensorboard"
+render: False
+render_mode: 'rgb_array'
+fps: 15
+device: "cpu"
+distributed_training: False
+
+# Environment
+env_name: "grid_exploration"
+env_id: "grid_exploration"
+env_seed: 42
+continuous_action: False  # Discrete actions: up, down, left, right, stay
+
+# Grid World Parameters
+num_agents: 4
+grid_size: 15
+max_episode_steps: 300
+
+# Algorithm - using IQL for discrete actions
+agent: "IQL"  # Works well with discrete action spaces
+learner: "IQL_Learner"
+policy: "Basic_Q_network_marl"
+representation: "Basic_MLP"
+vectorize: "DummyVecMultiAgentEnv"
+runner: "MARL"
+
+# Network architecture
+use_rnn: False
+rnn: "GRU"
+N_recurrent_layers: 1
+fc_hidden_sizes: [128, ]
+recurrent_hidden_size: 128
+dropout: 0
+
+representation_hidden_size: [128, ]
+q_hidden_size: [128, 128]
+activation: 'relu'
+
+# Agent settings
+use_parameter_sharing: True
+use_actions_mask: False
+use_global_state: False
+
+# Training
+seed: 42
+parallels: 8
+buffer_size: 100000
+batch_size: 256
+learning_rate: 0.001
+gamma: 0.99
+tau: 0.001
+double_q: True
+
+# Exploration
+start_greedy: 1.0
+end_greedy: 0.05
+decay_step_greedy: 1000000
+start_training: 1000
+running_steps: 2000000
+training_frequency: 25
+sync_frequency: 100
+
+use_grad_clip: False
+grad_clip_norm: 0.5
+
+# Evaluation
+eval_interval: 50000
+test_episodes: 10
+
+# Logging
+log_dir: "logs/grid_exploration/"
+model_dir: "models/grid_exploration/"

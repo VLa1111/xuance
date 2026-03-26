@@ -1,0 +1,58 @@
+# Multi-Agent RL for Robot Swarm Exploration
+# Configuration for MADDPG algorithm on MPE simple_spread scenario
+
+dl_toolbox: "torch"
+project_name: "Swarm_Exploration"
+logger: "tensorboard"
+render: True
+render_mode: 'rgb_array'
+fps: 15
+device: "cuda:0"
+distributed_training: False
+
+# Algorithm
+agent: "MADDPG"
+env_name: "mpe"
+env_id: "simple_spread_v3"
+continuous_action: True
+learner: "MADDPG_Learner"
+policy: "MADDPG_Policy"
+representation: "Basic_Identical"
+vectorize: "SubprocVecMultiAgentEnv"
+
+# Network architecture
+representation_hidden_size: []
+actor_hidden_size: [256, 256]
+critic_hidden_size: [256, 256]
+activation: 'leaky_relu'
+activation_action: 'sigmoid'
+
+# Agent settings
+use_parameter_sharing: True
+use_actions_mask: False
+
+# Training hyperparameters
+seed: 42
+parallels: 16
+buffer_size: 100000
+batch_size: 512
+learning_rate_actor: 0.001
+learning_rate_critic: 0.001
+gamma: 0.95
+tau: 0.001
+
+# Exploration noise
+start_noise: 1.0
+end_noise: 0.01
+sigma: 0.1
+start_training: 1000
+running_steps: 5000000
+training_frequency: 25
+
+# Evaluation
+eval_interval: 50000
+test_episode: 10
+
+# Logging
+log_dir: "logs/maddpg_exploration/"
+model_dir: "models/maddpg_exploration/"
