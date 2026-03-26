@@ -55,7 +55,7 @@ class WebVisualizationClient:
             print(f"[WebViz] Not connected: {e}")
             self.connected = False
 
-    def send_state(self, agents_pos, landmarks_pos, episode_reward, step, is_training=True, coverage=None):
+    def send_state(self, agents_pos, landmarks_pos, episode_reward, step, is_training=True, coverage=None, coord_range=None):
         """Send current state to web server."""
         if not self.connected:
             self._connect()
@@ -72,6 +72,8 @@ class WebVisualizationClient:
             }
             if coverage is not None:
                 data["coverage_percent"] = coverage
+            if coord_range is not None:
+                data["coord_range"] = coord_range
             requests.post(f"{self.server_url}/api/update", json=data, timeout=1)
         except Exception:
             pass
@@ -169,6 +171,8 @@ def parse_args():
                         help="Enable Web visualization")
     parser.add_argument("--server-url", type=str, default="http://localhost:5001",
                         help="Web visualization server URL")
+    parser.add_argument("--diagnose", action="store_true", default=False,
+                        help="Quick diagnostic run with 10000 steps to verify training")
     return parser.parse_args()
 
 
@@ -242,6 +246,59 @@ def main():
     # Print config
     print_config(configs, visualize=parser.visualize)
 
+    # Diagnostic mode: quick test to verify training works
+    if parser.diagnose:
+        print("\n[Diagnostic Mode] Quick training verification")
+        print("-" * 40)
+
+        # Run a short training session
+        diag_steps = 10000 // configs.parallels
+        print(f"Running {diag_steps} training steps to verify...")
+
+        # Test environment directly first
+        print("\n[Test 1] Testing environment directly...")
+        from xuance.environment import make_envs
+        test_configs = deepcopy(configs)
+        test_configs.parallels = 1
+        test_env = make_envs(test_configs)
+
+        # Reset and run a few steps
+        obs = test_env.reset()
+        print(f"  Reset obs shape: {len(obs)} agents")
+
+        total_reward = 0
+        for i in range(10):
+            # Random actions
+            actions = {agent: np.random.randint(0, 5) for agent in obs.keys()}
+            obs, rewards, terms, truncs, infos = test_env.step(actions)
+            total_reward += sum(rewards.values()) if isinstance(rewards, dict) else sum(rewards)
+            if i < 3:
+                print(f"  Step {i}: reward={sum(rewards.values()) if isinstance(rewards, dict) else rewards:.2f}, terms={terms}")
+
+        print(f"  Total reward (10 steps): {total_reward:.2f}")
+
+        # Now test with agent
+        print("\n[Test 2] Testing with IQL agent...")
+        agent.train(diag_steps)
+
+        print(f"\n  Training finished. Current step: {agent.current_step}")
+
+        # Quick test of learned policy
+        print("\n[Test 3] Testing trained policy...")
+        test_scores = agent.test(test_episodes=3, test_envs=test_env, close_envs=True)
+        mean_score = np.mean(test_scores) if len(test_scores) > 0 else 0
+        print(f"  Test scores: {test_scores}")
+        print(f"  Mean score: {mean_score:.2f}")
+
+        if mean_score != 0:
+            print("\n[PASS] Training appears to be working - non-zero rewards detected!")
+        else:
+            print("\n[WARNING] Training may not be working - all zero rewards")
+
+        agent.finish()
+        print("\nDiagnostic complete!")
+        return
+
     # Training loop
     train_steps = configs.running_steps // configs.parallels
 
@@ -305,13 +362,16 @@ def main():
                             print(f"[Debug] Using MPE positions: {agents_pos}")
 
                     if agents_pos:
+                        # Determine coordinate range based on environment
+                        coord_range = 15.0 if configs.env_id == "grid_exploration" else 1.0
                         web_viz.send_state(
                             agents_pos=agents_pos,
                             landmarks_pos=landmarks_pos,
                             episode_reward=mean_reward,
                             step=agent.current_step,
                             is_training=False,
-                            coverage=coverage
+                            coverage=coverage,
+                            coord_range=coord_range
                         )
                         print(f"[WebViz] Sent state: {len(agents_pos)} agents, coverage={coverage}")
                     else:

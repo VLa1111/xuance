@@ -51,10 +51,10 @@ class GridExplorationEnv:
         self.view_range = view_range
         self.np_random = np.random.RandomState(seed)
 
-        # Define spaces
+        # Define spaces - each agent has its own 4-dim observation
         self.observation_space = Box(
             low=-1, high=1,
-            shape=(num_agents * 4,),  # [x, y, coverage, other_agents_count]
+            shape=(4,),  # [x, y, coverage, other_agents_count] per agent
             dtype=np.float32
         )
         self.action_space = Discrete(5)  # 0:up, 1:down, 2:left, 3:right, 4:stay
@@ -154,6 +154,7 @@ class GridExplorationEnv:
             agent: {
                 "coverage": self.get_coverage_percent(),
                 "step": self.step_count,
+                "episode_score": self.episode_rewards[agent],  # xuance framework requires this
             }
             for agent in self.agents
         }
@@ -172,6 +173,9 @@ class GridExplorationEnv:
         Returns:
             observations, rewards, terminations, truncations, infos
         """
+        # Initialize step rewards
+        step_rewards = {agent: 0.0 for agent in self.agents}
+
         # Process each agent's action
         for i, agent in enumerate(self.agents):
             action = actions.get(agent, 4)  # default: stay
@@ -198,16 +202,16 @@ class GridExplorationEnv:
             cell = (gx, gy)
             is_new_cell = cell not in self.visited_cells[i]
 
-            # Compute reward
-            reward = 0
+            # Compute immediate reward for this agent
             if is_new_cell:
-                reward = 10.0  # New cell exploration reward
+                step_rewards[agent] = 10.0  # New cell exploration reward
                 self.visited_cells[i].add(cell)
                 self.coverage_grid[gy, gx] = 1
             else:
-                reward = -0.1  # Penalty for revisiting
+                step_rewards[agent] = -0.1  # Penalty for revisiting
 
-            self.episode_rewards[agent] += reward
+            # Update episode rewards (xuance framework will use this for episode_score)
+            self.episode_rewards[agent] += step_rewards[agent]
 
         # Mark all current positions as covered
         self._mark_coverage()
@@ -218,10 +222,8 @@ class GridExplorationEnv:
         all_covered = self.get_coverage_percent() >= 100.0
         timeout = self.step_count >= self.max_steps
 
-        # Rewards for all agents (team reward)
-        rewards = {
-            agent: self.compute_reward() for agent in self.agents
-        }
+        # Use immediate step_rewards for learning (not team reward)
+        rewards = step_rewards
 
         # Terminations (done if fully covered)
         terminations = {agent: all_covered for agent in self.agents}
@@ -301,7 +303,7 @@ class PettingZooWrapper:
 
     def reset(self):
         obs, infos = self.env.reset()
-        return obs
+        return obs, infos
 
     def step(self, actions):
         obs, rewards, terminations, truncations, infos = self.env.step(actions)
