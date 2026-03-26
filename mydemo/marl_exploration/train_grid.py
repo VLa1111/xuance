@@ -167,7 +167,7 @@ def get_mpe_landmarks(env):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train MARL Agents")
-    parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--device", type=str, default="cuda:0")
     parser.add_argument("--parallels", type=int, default=8)
     parser.add_argument("--running-steps", type=int, default=2000000)
     parser.add_argument("--eval-interval", type=int, default=50000)
