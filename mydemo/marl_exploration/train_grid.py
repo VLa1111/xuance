@@ -40,7 +40,7 @@ from xuance.torch.agents import IQL_Agents
 class WebVisualizationClient:
     """Client to send training data to the web visualization server."""
 
-    def __init__(self, server_url="http://localhost:5000"):
+    def __init__(self, server_url="http://localhost:5001"):
         self.server_url = server_url
         self.connected = False
         self._connect()
@@ -115,18 +115,29 @@ def get_grid_positions(env):
     coverage = 0.0
 
     try:
-        # Access the underlying grid environment
-        if hasattr(env, 'env'):
-            raw_env = env.env
-            # Get agent positions
-            if hasattr(raw_env, 'agent_positions'):
-                for pos in raw_env.agent_positions:
-                    positions.append({"x": float(pos[0]), "y": float(pos[1])})
-            # Get coverage
-            if hasattr(raw_env, 'get_coverage'):
-                coverage = raw_env.get_coverage() * 100
-    except Exception:
-        pass
+        # Chain: DummyVecEnv -> XuanCeMultiAgentEnvWrapper -> GridExplorationMAEnv -> GridExplorationEnv
+        raw_env = env
+
+        # Try to unwrap through layers
+        for _ in range(4):  # Max 4 layers of wrapping
+            if hasattr(raw_env, 'env'):
+                raw_env = raw_env.env
+            elif hasattr(raw_env, 'agent_positions'):
+                break
+
+        # Get agent positions
+        if hasattr(raw_env, 'agent_positions'):
+            for pos in raw_env.agent_positions:
+                positions.append({"x": float(pos[0]), "y": float(pos[1])})
+            print(f"[get_grid_positions] Found {len(positions)} agent positions")
+
+        # Get coverage
+        if hasattr(raw_env, 'get_coverage'):
+            coverage = raw_env.get_coverage() * 100
+            print(f"[get_grid_positions] Coverage: {coverage}")
+
+    except Exception as e:
+        print(f"[get_grid_positions] Error: {e}")
 
     return positions, coverage
 
@@ -156,7 +167,7 @@ def parse_args():
     parser.add_argument("--benchmark", action="store_true", default=False)
     parser.add_argument("--visualize", action="store_true", default=False,
                         help="Enable Web visualization")
-    parser.add_argument("--server-url", type=str, default="http://localhost:5000",
+    parser.add_argument("--server-url", type=str, default="http://localhost:5001",
                         help="Web visualization server URL")
     return parser.parse_args()
 
@@ -278,26 +289,35 @@ def main():
 
                     if hasattr(test_envs, 'envs') and len(test_envs.envs) > 0:
                         sample_env = test_envs.envs[0]
-                        # Try grid environment
-                        if hasattr(sample_env, 'env') and hasattr(sample_env.env, 'agent_positions'):
-                            agents_pos, coverage = get_grid_positions(sample_env)
+                        print(f"[Debug] sample_env type: {type(sample_env)}")
+
+                        # Try to get grid positions
+                        agents_pos, coverage = get_grid_positions(sample_env)
+
+                        if agents_pos:
                             landmarks_pos = []
+                            print(f"[Debug] Got grid positions: {agents_pos}")
                         else:
                             # MPE environment
                             obs, _ = sample_env.reset()
                             agents_pos = get_positions_from_obs(obs, num_agents)
                             landmarks_pos = get_mpe_landmarks(sample_env)
+                            print(f"[Debug] Using MPE positions: {agents_pos}")
 
-                    web_viz.send_state(
-                        agents_pos=agents_pos,
-                        landmarks_pos=landmarks_pos,
-                        episode_reward=mean_reward,
-                        step=agent.current_step,
-                        is_training=False,
-                        coverage=coverage
-                    )
+                    if agents_pos:
+                        web_viz.send_state(
+                            agents_pos=agents_pos,
+                            landmarks_pos=landmarks_pos,
+                            episode_reward=mean_reward,
+                            step=agent.current_step,
+                            is_training=False,
+                            coverage=coverage
+                        )
+                        print(f"[WebViz] Sent state: {len(agents_pos)} agents, coverage={coverage}")
+                    else:
+                        print(f"[WebViz] No positions extracted, skipping send")
                 except Exception as e:
-                    pass
+                    print(f"[WebViz] Error: {e}")
 
             # Track best
             if mean_reward > best_reward:
