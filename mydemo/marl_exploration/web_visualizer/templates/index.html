@@ -362,7 +362,7 @@
     <script>
         // Configuration
         const CANVAS_SIZE = 600;
-        const WORLD_SIZE = 2.0;  // MPE world is typically -1 to 1
+        let WORLD_SIZE = 2.0;  // MPE world is typically -1 to 1, but can be overridden
         const AGENT_RADIUS = 8;
         const LANDMARK_RADIUS = 6;
 
@@ -398,9 +398,19 @@
 
         // Coordinate transformation (world to canvas)
         function worldToCanvas(x, y) {
-            const cx = (x + WORLD_SIZE) / (2 * WORLD_SIZE) * CANVAS_SIZE;
-            const cy = CANVAS_SIZE - ((y + WORLD_SIZE) / (2 * WORLD_SIZE) * CANVAS_SIZE);  // Flip Y
-            return [cx, cy];
+            // Grid environment: coord_range=15 means coordinates are 0 to 15
+            // MPE environment: coord_range=1 or 2 means coordinates are -1 to 1
+            if (WORLD_SIZE > 5) {
+                // Grid environment: 0 to WORLD_SIZE
+                const cx = (x / WORLD_SIZE) * CANVAS_SIZE;
+                const cy = CANVAS_SIZE - ((y / WORLD_SIZE) * CANVAS_SIZE);  // Flip Y
+                return [cx, cy];
+            } else {
+                // MPE environment: -WORLD_SIZE to +WORLD_SIZE
+                const cx = (x + WORLD_SIZE) / (2 * WORLD_SIZE) * CANVAS_SIZE;
+                const cy = CANVAS_SIZE - ((y + WORLD_SIZE) / (2 * WORLD_SIZE) * CANVAS_SIZE);  // Flip Y
+                return [cx, cy];
+            }
         }
 
         // Drawing functions
@@ -541,6 +551,7 @@
         });
 
         socket.on('state_update', (data) => {
+            console.log('Received state_update:', data);
             if (!isPaused) {
                 agents = data.agents || [];
                 landmarks = data.landmarks || [];
@@ -548,6 +559,21 @@
                 coveragePercent = data.coverage_percent || 0;
                 episodeReward = data.episode_reward || 0;
                 step = data.step || 0;
+
+                console.log('Agents:', agents);
+                console.log('coord_range:', data.coord_range);
+                console.log('grid_size:', data.grid_size);
+
+                // Update coordinate system based on environment
+                if (data.coord_range) {
+                    WORLD_SIZE = data.coord_range;
+                }
+
+                // Update grid size
+                if (data.grid_size) {
+                    gridSize = data.grid_size;
+                }
+
                 updateUI();
             }
         });

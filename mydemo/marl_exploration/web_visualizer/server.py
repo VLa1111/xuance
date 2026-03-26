@@ -26,7 +26,8 @@ state = {
     "agents": [],           # List of agent positions
     "landmarks": [],        # List of landmark positions
     "coverage_grid": None,  # 2D grid showing exploration coverage
-    "grid_size": 20,        # Grid resolution
+    "grid_size": 15,        # Default to 15 for grid_exploration
+    "coord_range": 15.0,   # Default to grid environment range
     "episode_reward": 0,
     "episode": 0,
     "step": 0,
@@ -39,19 +40,29 @@ state = {
 class CoverageGrid:
     """Tracks exploration coverage on a 2D grid."""
 
-    def __init__(self, grid_size=20, world_size=2.0):
+    def __init__(self, grid_size=15, coord_range=15.0):
         self.grid_size = grid_size
-        self.world_size = world_size
+        self.coord_range = coord_range
         self.grid = [[0 for _ in range(grid_size)] for _ in range(grid_size)]
         self.total_cells = grid_size * grid_size
         self.covered_cells = set()
 
     def update(self, positions):
         """Update coverage based on agent positions."""
-        for x, y in positions:
+        for pos in positions:
+            x = pos.get("x", 0)
+            y = pos.get("y", 0)
+
             # Map world coordinates to grid
-            gx = int((x + self.world_size) / (2 * self.world_size) * (self.grid_size - 1))
-            gy = int((y + self.world_size) / (2 * self.world_size) * (self.grid_size - 1))
+            if self.coord_range > 5:
+                # Grid environment: 0 to coord_range
+                gx = int(x)
+                gy = int(y)
+            else:
+                # MPE environment: -coord_range to +coord_range
+                gx = int((x + self.coord_range) / (2 * self.coord_range) * (self.grid_size - 1))
+                gy = int((y + self.coord_range) / (2 * self.coord_range) * (self.grid_size - 1))
+
             gx = max(0, min(self.grid_size - 1, gx))
             gy = max(0, min(self.grid_size - 1, gy))
 
@@ -74,8 +85,17 @@ class CoverageGrid:
         self.grid = [[0 for _ in range(self.grid_size)] for _ in range(self.grid_size)]
         self.covered_cells = set()
 
+    def set_params(self, grid_size, coord_range):
+        """Update grid parameters."""
+        if grid_size != self.grid_size or coord_range != self.coord_range:
+            self.grid_size = grid_size
+            self.coord_range = coord_range
+            self.grid = [[0 for _ in range(grid_size)] for _ in range(grid_size)]
+            self.total_cells = grid_size * grid_size
+            self.covered_cells = set()
 
-coverage_grid = CoverageGrid(grid_size=state["grid_size"])
+
+coverage_grid = CoverageGrid(grid_size=state["grid_size"], coord_range=state["coord_range"])
 
 
 @app.route('/')
@@ -111,6 +131,20 @@ def update_state():
     state["agents"] = data.get("agents", [])
     state["landmarks"] = data.get("landmarks", [])
 
+    # Update coord_range and grid_size based on environment
+    coord_range = data.get("coord_range", 15.0)
+    state["coord_range"] = coord_range
+
+    # Set appropriate grid_size based on coord_range
+    if coord_range > 10:
+        grid_size = int(coord_range)
+    else:
+        grid_size = 20
+    state["grid_size"] = grid_size
+
+    # Update coverage grid parameters
+    coverage_grid.set_params(grid_size, coord_range)
+
     # Update coverage
     if state["agents"]:
         coverage_grid.update(state["agents"])
@@ -119,6 +153,7 @@ def update_state():
     state["episode_reward"] = data.get("episode_reward", 0)
     state["step"] = data.get("step", 0)
     state["is_training"] = data.get("is_training", True)
+    state["coord_range"] = data.get("coord_range", 1.0)
 
     # Broadcast to all clients
     socketio.emit('state_update', {
@@ -128,6 +163,7 @@ def update_state():
         "coverage_percent": coverage_grid.get_coverage(),
         "episode_reward": state["episode_reward"],
         "step": state["step"],
+        "coord_range": state["coord_range"],
     })
 
     return jsonify({"status": "ok"})
@@ -173,6 +209,8 @@ def handle_connect():
         "coverage_percent": coverage_grid.get_coverage(),
         "episode_reward": state["episode_reward"],
         "step": state["step"],
+        "coord_range": state.get("coord_range", 15.0),
+        "grid_size": state.get("grid_size", 15),
     })
 
 
