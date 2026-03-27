@@ -76,11 +76,15 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
         observations, infos = self.env.reset()
         self._episode_step = 0
 
-        # Convert to xuance format
+        # Build episode_score dict (xuance expects this at top level)
+        episode_scores = {agent: float(infos.get(agent, {}).get("episode_score", 0.0)) for agent in self.agents}
+
+        # Convert to xuance format - episode_score must be at top level
         obs_dict = {k: v for k, v in observations.items()}
         info_dict = {
             "infos": infos,
             "episode_step": self._episode_step,
+            "episode_score": episode_scores,  # xuance expects this at top level
         }
 
         return obs_dict, info_dict
@@ -100,7 +104,10 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
 
         self._episode_step += 1
 
-        # Convert to xuance format
+        # Build episode_score dict (xuance expects this at top level)
+        episode_scores = {agent: float(info.get(agent, {}).get("episode_score", 0.0)) for agent in self.agents}
+
+        # Convert to xuance format - episode_score must be at top level
         obs_dict = {k: v for k, v in obs.items()}
         rewards_dict = {k: float(v) for k, v in rewards.items()}
         terminated_dict = {k: bool(v) for k, v in terminated.items()}
@@ -110,6 +117,7 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
         info_dict = {
             "infos": info,
             "episode_step": self._episode_step,
+            "episode_score": episode_scores,  # xuance expects this at top level
         }
 
         return obs_dict, rewards_dict, terminated_dict, truncated_dict, info_dict
