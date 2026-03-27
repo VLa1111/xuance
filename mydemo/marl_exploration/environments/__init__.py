@@ -111,8 +111,9 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
         obs_dict = {k: v for k, v in obs.items()}
         rewards_dict = {k: float(v) for k, v in rewards.items()}
         terminated_dict = {k: bool(v) for k, v in terminated.items()}
-        truncated_dict = {k: bool(terminated_dict[k]) or self._episode_step >= self.max_cycles for k in
-                         self.agents}
+        # truncated should be a BOOLEAN (not dict) for xuance DummyVecMultiAgentEnv compatibility
+        # True if any agent is terminated OR episode step reached max_cycles
+        truncated = any(terminated_dict.values()) or self._episode_step >= self.max_cycles
 
         info_dict = {
             "infos": info,
@@ -120,7 +121,7 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
             "episode_score": episode_scores,  # xuance expects this at top level
         }
 
-        return obs_dict, rewards_dict, terminated_dict, truncated_dict, info_dict
+        return obs_dict, rewards_dict, terminated_dict, truncated, info_dict
 
     def render(self, *args, **kwargs):
         """Render the environment."""
