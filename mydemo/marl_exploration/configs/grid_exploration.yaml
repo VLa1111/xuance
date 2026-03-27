@@ -58,12 +58,12 @@ double_q: True
 
 # Exploration
 start_greedy: 1.0
-end_greedy: 0.05
-decay_step_greedy: 1500000
-start_training: 5000
+end_greedy: 0.01
+decay_step_greedy: 200000
+start_training: 1000
 running_steps: 2000000
-training_frequency: 15
-sync_frequency: 200
+training_frequency: 5
+sync_frequency: 100
 
 use_grad_clip: True
 grad_clip_norm: 0.5
