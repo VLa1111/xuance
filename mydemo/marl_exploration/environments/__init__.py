@@ -68,6 +68,7 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
 
         # Episode tracking
         self._episode_step = 0
+        self._total_episode_score = {agent: 0.0 for agent in self.agents}  # Accumulated across episodes
         self.max_cycles = self.max_episode_steps
         self.max_episode_steps = self.max_episode_steps  # Required by xuance
 
@@ -75,9 +76,13 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
         """Reset the environment."""
         observations, infos = self.env.reset()
         self._episode_step = 0
+        # NOTE: We do NOT reset _total_episode_score here
+        # This is intentional to fix the xuance DummyVecMultiAgentEnv reset bug
+        # The episode_score will accumulate across episodes
 
         # Build episode_score dict (xuance expects this at top level)
-        episode_scores = {agent: float(infos.get(agent, {}).get("episode_score", 0.0)) for agent in self.agents}
+        # Use _total_episode_score to maintain continuity
+        episode_scores = {agent: float(self._total_episode_score[agent]) for agent in self.agents}
 
         # Convert to xuance format - episode_score must be at top level
         obs_dict = {k: v for k, v in observations.items()}
@@ -104,8 +109,16 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
 
         self._episode_step += 1
 
+        # Update accumulated episode_score
+        # NOTE: We accumulate rewards into _total_episode_score, never resetting it
+        # This fixes the xuance DummyVecMultiAgentEnv reset bug where episode_score
+        # gets reset right before it's logged
+        for agent in self.agents:
+            self._total_episode_score[agent] += float(rewards.get(agent, 0.0))
+
         # Build episode_score dict (xuance expects this at top level)
-        episode_scores = {agent: float(info.get(agent, {}).get("episode_score", 0.0)) for agent in self.agents}
+        # Use _total_episode_score for continuity
+        episode_scores = {agent: float(self._total_episode_score[agent]) for agent in self.agents}
 
         # Convert to xuance format - episode_score must be at top level
         obs_dict = {k: v for k, v in obs.items()}
