@@ -56,11 +56,11 @@ gamma: 0.99
 tau: 0.005
 double_q: True
 
-# Exploration
+# Exploration - Adjusted for faster learning
 start_greedy: 1.0
-end_greedy: 0.01
-decay_step_greedy: 200000
-start_training: 1000
+end_greedy: 0.0  # No exploration at the end
+decay_step_greedy: 50000  # 2.5% of total steps for full decay
+start_training: 5000  # More buffer before training starts
 running_steps: 2000000
 training_frequency: 5
 sync_frequency: 100
