@@ -30,11 +30,13 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
             self.grid_size = config.grid_size
             self.max_episode_steps = config.max_episode_steps
             env_seed = config.env_seed if hasattr(config, 'env_seed') else 1
+            obstacle_density = config.obstacle_density if hasattr(config, 'obstacle_density') else 0.15
         else:
             self.num_drones = config.get("num_agents", 3)
             self.grid_size = config.get("grid_size", 15)
             self.max_episode_steps = config.get("max_episode_steps", 300)
             env_seed = config.get("env_seed", 1)
+            obstacle_density = config.get("obstacle_density", 0.15)
 
         # Create the underlying environment
         self.env = GridExplorationEnv(
@@ -42,6 +44,7 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
             grid_size=self.grid_size,
             max_steps=self.max_episode_steps,
             seed=env_seed,
+            obstacle_density=obstacle_density,
         )
 
         # Agent info

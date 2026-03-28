@@ -20,6 +20,7 @@ continuous_action: False  # Discrete actions: up, down, left, right, stay
 num_agents: 4
 grid_size: 15
 max_episode_steps: 300
+obstacle_density: 0.15
 
 # Algorithm - using IQL for discrete actions
 agent: "IQL"  # Works well with discrete action spaces
