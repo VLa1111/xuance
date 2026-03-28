@@ -52,7 +52,7 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
         self.agent_groups = [self.agents_ids]
 
         # Spaces
-        obs_shape = (4,)  # Each agent's observation: [normalized_x, normalized_y, coverage_percent, nearby_agents]
+        obs_shape = (5,)  # Each agent's observation: [normalized_x, normalized_y, obstacle_dir, coverage_percent, nearby_agents]
         act_shape = ()  # Discrete action
 
         self.observation_space = {
@@ -64,7 +64,7 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
             for agent in self.agents
         }
         # Global state space (for centralized training)
-        self.state_space = Box(-np.inf, np.inf, shape=(4 * self.num_agents,), dtype=np.float32)
+        self.state_space = Box(-np.inf, np.inf, shape=(5 * self.num_agents,), dtype=np.float32)
 
         # Episode tracking
         self._episode_step = 0
