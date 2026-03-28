@@ -30,13 +30,11 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
             self.grid_size = config.grid_size
             self.max_episode_steps = config.max_episode_steps
             env_seed = config.env_seed if hasattr(config, 'env_seed') else 1
-            obstacle_density = config.obstacle_density if hasattr(config, 'obstacle_density') else 0.15
         else:
             self.num_drones = config.get("num_agents", 3)
             self.grid_size = config.get("grid_size", 15)
             self.max_episode_steps = config.get("max_episode_steps", 300)
             env_seed = config.get("env_seed", 1)
-            obstacle_density = config.get("obstacle_density", 0.15)
 
         # Create the underlying environment
         self.env = GridExplorationEnv(
@@ -44,7 +42,6 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
             grid_size=self.grid_size,
             max_steps=self.max_episode_steps,
             seed=env_seed,
-            obstacle_density=obstacle_density,
         )
 
         # Agent info
@@ -55,7 +52,7 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
         self.agent_groups = [self.agents_ids]
 
         # Spaces
-        obs_shape = (5,)  # Each agent's observation: [normalized_x, normalized_y, obstacle_dir, coverage_percent, nearby_agents]
+        obs_shape = (4,)  # Each agent's observation: [normalized_x, normalized_y, coverage_percent, nearby_agents]
         act_shape = ()  # Discrete action
 
         self.observation_space = {
@@ -67,11 +64,10 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
             for agent in self.agents
         }
         # Global state space (for centralized training)
-        self.state_space = Box(-np.inf, np.inf, shape=(5 * self.num_agents,), dtype=np.float32)
+        self.state_space = Box(-np.inf, np.inf, shape=(4 * self.num_agents,), dtype=np.float32)
 
         # Episode tracking
         self._episode_step = 0
-        self._total_episode_score = {agent: 0.0 for agent in self.agents}  # Accumulated across episodes
         self.max_cycles = self.max_episode_steps
         self.max_episode_steps = self.max_episode_steps  # Required by xuance
 
@@ -79,22 +75,17 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
         """Reset the environment."""
         observations, infos = self.env.reset()
         self._episode_step = 0
-        # NOTE: We do NOT reset _total_episode_score here
-        # This is intentional to fix the xuance DummyVecMultiAgentEnv reset bug
-        # The episode_score will accumulate across episodes
 
-        # Build info dict for xuance
-        # xuance expects info[i]["episode_score"] for each agent i
+        # Build episode_score dict (xuance expects this at top level)
+        episode_scores = {agent: float(infos.get(agent, {}).get("episode_score", 0.0)) for agent in self.agents}
+
+        # Convert to xuance format - episode_score must be at top level
         obs_dict = {k: v for k, v in observations.items()}
         info_dict = {
-            agent: {
-                "episode_score": float(self._total_episode_score[agent]),
-                "episode_step": int(self._episode_step),
-                **infos.get(agent, {}),  # include agent-specific info
-            }
-            for agent in self.agents
+            "infos": infos,
+            "episode_step": self._episode_step,
+            "episode_score": episode_scores,  # xuance expects this at top level
         }
-        info_dict["infos"] = infos  # store original info
 
         return obs_dict, info_dict
 
@@ -113,32 +104,22 @@ class GridExplorationMAEnv(RawMultiAgentEnv):
 
         self._episode_step += 1
 
-        # Update accumulated episode_score
-        # NOTE: We accumulate rewards into _total_episode_score, never resetting it
-        # This fixes the xuance DummyVecMultiAgentEnv reset bug where episode_score
-        # gets reset right before it's logged
-        for agent in self.agents:
-            self._total_episode_score[agent] += float(rewards.get(agent, 0.0))
+        # Build episode_score dict (xuance expects this at top level)
+        episode_scores = {agent: float(info.get(agent, {}).get("episode_score", 0.0)) for agent in self.agents}
 
-        # Convert to xuance format
+        # Convert to xuance format - episode_score must be at top level
         obs_dict = {k: v for k, v in obs.items()}
         rewards_dict = {k: float(v) for k, v in rewards.items()}
         terminated_dict = {k: bool(v) for k, v in terminated.items()}
         # truncated should be a BOOLEAN (not dict) for xuance DummyVecMultiAgentEnv compatibility
+        # True if any agent is terminated OR episode step reached max_cycles
         truncated = any(terminated_dict.values()) or self._episode_step >= self.max_cycles
 
-        # Build info dict for xuance
-        # xuance expects info[i]["episode_score"] for each agent i
-        # And info[i]["episode_step"] for step count
         info_dict = {
-            agent: {
-                "episode_score": float(self._total_episode_score[agent]),
-                "episode_step": int(self._episode_step),
-                **info.get(agent, {}),  # include agent-specific info
-            }
-            for agent in self.agents
+            "infos": info,
+            "episode_step": self._episode_step,
+            "episode_score": episode_scores,  # xuance expects this at top level
         }
-        info_dict["infos"] = info  # store original info
 
         return obs_dict, rewards_dict, terminated_dict, truncated, info_dict
 

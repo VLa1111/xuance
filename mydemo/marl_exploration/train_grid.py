@@ -291,10 +291,12 @@ def main():
 
         # Now test with xuance agent (short training)
         print("\n[Test 2] Testing with IQL agent (short training)...")
+        print(f"  Initial epsilon: {agent.e_greedy:.4f}, delta_egreedy: {agent.delta_egreedy:.6f}")
+        print(f"  Config: start_greedy={configs.start_greedy}, end_greedy={configs.end_greedy}, decay_step={configs.decay_step_greedy}")
         diag_steps = 5000 // configs.parallels
         print(f"  Running {diag_steps} training steps...")
         agent.train(diag_steps)
-        print(f"  Training finished. Current step: {agent.current_step}")
+        print(f"  Training finished. Current step: {agent.current_step}, epsilon: {agent.e_greedy:.4f}")
 
         # Quick test of learned policy
         print("\n[Test 3] Testing trained policy...")
